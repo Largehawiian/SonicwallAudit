@@ -8,7 +8,7 @@ function Start-SwAuditMFA {
         $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
         }
         while ($null -eq $cred)
-        # $cred = (Get-ITGluePasswords -organization_id $Target.ITGlueID -id $Target.Asset).data.attributes
+        
         Start-Sleep -Seconds 2
         $connectioninfo = [PSCustomObject]@{
             PubIp    = $cred.url.trimstart('https://').split(':')[0]
@@ -18,7 +18,7 @@ function Start-SwAuditMFA {
             OrgID    = $cred.'organization-id'
             TFA      = $AuditTarget.TFA
         }
-        If ($connectioninfo.PubIp -eq $null){Write-host "No Connection Info Generated"; exit}
+        If ($NUll -eq $connectioninfo.PubIp){Write-host "No Connection Info Generated"; exit}
         $instance = "SQL\SQLEXPRESS01"
         $DBName = "SonicWallAudit"
 
