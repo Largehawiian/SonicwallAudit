@@ -4,7 +4,7 @@ function Update-ReportTable {
         [Parameter()]
         [switch]$MostRecent
     )
-   
+   $Date = (get-date -f yyyy-MM-dd)
     if ($MostRecent){
         $RawdataQuery = "SELECT
         AntiSpyware.Enabled AS [AntiSpyware Enabled]
@@ -51,7 +51,7 @@ function Update-ReportTable {
         INNER JOIN System
           ON System.AuditID = AntiSpyware.AuditID
       WHERE
-        AntiSpyware.AccountName IS NOT NULL AND AntiSpyware.Audit_Date LIKE '2021-11-24%' AND System.SNMP NOT like ''
+        AntiSpyware.AccountName IS NOT NULL AND AntiSpyware.Audit_Date LIKE '$($Date)%' AND System.SNMP NOT like ''
     "}
 
 else {
