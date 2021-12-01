@@ -4,7 +4,14 @@ function Update-ReportTable {
         [Parameter()]
         [switch]$MostRecent
     )
-   $Date = (get-date -f yyyy-MM-dd)
+
+    $instance = "SQL\Audit"
+    $DBName = "SonicWallAudit"
+
+    $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
+    $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
+    $Date = (get-date -f yyyy-MM-dd)
+
     if ($MostRecent){
         $RawdataQuery = "SELECT
         AntiSpyware.Enabled AS [AntiSpyware Enabled]

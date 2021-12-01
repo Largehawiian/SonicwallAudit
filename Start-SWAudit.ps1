@@ -1,4 +1,4 @@
-function Start-SwAuditSQL {
+function Start-SwAudit {
     param (
         [array]$AuditTarget
     )
@@ -13,12 +13,11 @@ function Start-SwAuditSQL {
             OrgID    = $cred.'organization-id'
             TFA      = $AuditTarget.TFA
         }
-        $instance = "SQL\SQLEXPRESS01"
+        $instance = "SQL\Audit"
         $DBName = "SonicWallAudit"
 
-        $username = "SWAudit"
-        $pass = ConvertTo-SecureString "Welcome2!" -AsPlainText -Force
-        $creds = New-Object System.Management.Automation.PsCredential($username, $pass)
+        $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
+        $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
 
     }
     process {

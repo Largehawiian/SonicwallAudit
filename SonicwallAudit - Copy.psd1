@@ -70,7 +70,7 @@ Copyright = '(c) 2021 jjackson. All rights reserved.'
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = 'Add-SonicwallTarget', 'Get-SonicWall', 'Get-Targets', 'Send-TFA', 
-               'Set-Connection', 'Set-SonicWall', 'Start-SwAudit', 
+               'Set-Connection', 'Set-SonicWall', 'Start-SwAuditSQL', 
                'Start-SwAuditMFA', 'Update-ReportTable', 'Get-OTP', 
                'Get-TimeByteArray', 'Convert-HexToByteArray', 'Convert-Base32ToHex', 
                'Convert-IntToHex', 'Add-LeftPad'

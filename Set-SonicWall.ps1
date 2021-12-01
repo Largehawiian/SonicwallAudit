@@ -6,6 +6,12 @@ function Set-SonicWall {
         [switch]$Debug,
         [switch]$BasicAuth
     )
+
+    $instance = "SQL\Audit"
+    $DBName = "SonicWallAudit"
+
+    $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
+    $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
     
     $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
     if ($debug) { $cred; Start-Sleep -Seconds 5 }
@@ -67,29 +73,30 @@ function Set-SonicWall {
             "System" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/system"-Method 'GET' -Headers $headers } 
             "GAV" { 
                 $Body = @{
-                    gateway_antivirus=@{
-                        enable=$true
-                        inbound_inspection=@{
-                            http=$true
-                            ftp=$true
-                            imap=$true
-                            smtp=$true
-                            pop3=$true
-                            cifs_netbios=$true
-                            tcp_stream=$true
+                    gateway_antivirus = @{
+                        enable              = $true
+                        inbound_inspection  = @{
+                            http         = $true
+                            ftp          = $true
+                            imap         = $true
+                            smtp         = $true
+                            pop3         = $true
+                            cifs_netbios = $true
+                            tcp_stream   = $true
                         }
-                        outbound_inspection=@{
-                            http=$true
-                            ftp=$true
-                            smtp=$true
-                            tcp_stream=$true
+                        outbound_inspection = @{
+                            http       = $true
+                            ftp        = $true
+                            smtp       = $true
+                            tcp_stream = $true
                         }
                     }
                 } | ConvertTo-Json -Depth 3
                 
                 
                 Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/gateway-antivirus/settings" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' }
+                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
+            }
             "GeoIP" {
                 $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
                 $Body = @{
@@ -105,88 +112,92 @@ function Set-SonicWall {
                 Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
                 if ($Debug) { $GeoIPReference; $body ; $response ; Start-Sleep -Seconds 5 }
             }
-            "IPS" {  $Body = @{
-                intrusion_prevention = @{
-                    enable          = $True
-                    signature_group = @{
-                        high_priority   = @{
-                            prevent_all = $True
-                            detect_all  = $True
-                        }
-                        medium_priority = @{
-                            prevent_all = $True
-                            detect_all  = $True
-                        }
-                        low_priority    = @{
-                            prevent_all    = $False
-                            detect_all     = $True
-                            log_redundancy = 60
+            "IPS" {
+                $Body = @{
+                    intrusion_prevention = @{
+                        enable          = $True
+                        signature_group = @{
+                            high_priority   = @{
+                                prevent_all = $True
+                                detect_all  = $True
+                            }
+                            medium_priority = @{
+                                prevent_all = $True
+                                detect_all  = $True
+                            }
+                            low_priority    = @{
+                                prevent_all    = $False
+                                detect_all     = $True
+                                log_redundancy = 60
+                            }
                         }
                     }
-                }
-            } | Convertto-json -Depth 10
-               Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'PUT'-Body $Body 
-               Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'}
+                } | Convertto-json -Depth 10
+                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'PUT'-Body $Body 
+                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
+            }
             "SecExpiration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/intrusion-prevention" -Method 'GET' -Headers $headers).ips_service_expiration_date }
             "BotNet" { 
                 $body = @{
-                    botnet=@{
-                        block = @{
-                        connections=@{
-                            all=$true
+                    botnet = @{
+                        block       = @{
+                            connections             = @{
+                                all = $true
+                            }
+                            database_not_downloaded = $false
                         }
-                        database_not_downloaded=$false
-                    }
                         
-                    logging = $true
-                    include = @{
-                        block_details = $true
-                    }
-                    custom_list = @{
-                        enable = $false
-                    }
-                 }  
+                        logging     = $true
+                        include     = @{
+                            block_details = $true
+                        }
+                        custom_list = @{
+                            enable = $false
+                        }
+                    }  
                 } | convertto-json -Depth 3 
                 Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/botnet/global" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'}
+                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
+            }
             "SNMP" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/snmp/settings" -Method 'GET' -Headers $headers).snmp }
             "Administration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/administration/global" -Method 'GET' -Headers $headers).Administration }
             "AntiSpyware" {
                 $body = @{
                     anti_spyware = @{
-                        enable=$true
-                        signature_group=@{
-                            high_danger=@{
-                                prevent_all=$true
-                                detect_all=$true
-                                log_redundancy=0
+                        enable          = $true
+                        signature_group = @{
+                            high_danger   = @{
+                                prevent_all    = $true
+                                detect_all     = $true
+                                log_redundancy = 0
                             }
-                            medium_danger=@{
-                                prevent_all=$true
-                                detect_all=$true
-                                log_redundancy=0
+                            medium_danger = @{
+                                prevent_all    = $true
+                                detect_all     = $true
+                                log_redundancy = 0
                             }
-                            low_danger=@{
-                                prevent_all=$false
-                                detect_all=$true
-                                log_redundancy=0
+                            low_danger    = @{
+                                prevent_all    = $false
+                                detect_all     = $true
+                                log_redundancy = 0
                             }
                         }
-                        inspection=@{
-                            inbound=@{
-                                http=$true
-                                ftp=$true
-                                imap=$true
-                                smtp=$true
-                                pop3=$true
+                        inspection      = @{
+                            inbound  = @{
+                                http = $true
+                                ftp  = $true
+                                imap = $true
+                                smtp = $true
+                                pop3 = $true
                             }
-                            outbound=$true
+                            outbound = $true
                         }
                     }
                 } | ConvertTo-Json -Depth 3
                 
                 Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' }
+                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
+            }
             "DelAuth" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $headers }
             "Commit" { $response = Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $headers }
         }

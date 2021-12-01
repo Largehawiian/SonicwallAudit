@@ -2,7 +2,12 @@ function Add-SonicwallTarget {
     param (
         
     )
- 
+    $instance = "SQL\Audit"
+    $DBName = "SonicWallAudit"
+
+    $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
+    $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
+    
     $AccountName = Read-Host -Prompt "Enter Account Name"
     $AccountID = Read-Host -Prompt "Enter Autotask Account ID"
     $Active = Read-Host -Prompt "Is this an active appliance? Y/N"

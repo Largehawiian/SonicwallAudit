@@ -5,7 +5,7 @@ function Start-SwAuditMFA {
     begin {
 
         do {
-        $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
+            $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
         }
         while ($null -eq $cred)
         
@@ -18,16 +18,15 @@ function Start-SwAuditMFA {
             OrgID    = $cred.'organization-id'
             TFA      = $AuditTarget.TFA
         }
-        If ($NUll -eq $connectioninfo.PubIp){Write-host "No Connection Info Generated"; exit}
-        $instance = "SQL\SQLEXPRESS01"
+        If ($NUll -eq $connectioninfo.PubIp) { Write-host "No Connection Info Generated"; exit }
+        $instance = "SQL\Audit"
         $DBName = "SonicWallAudit"
 
-        $username = "SWAudit"
-        $pass = ConvertTo-SecureString "Welcome2!" -AsPlainText -Force
-        $creds = New-Object System.Management.Automation.PsCredential($username, $pass)
+        $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
+        $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
 
-       if ([System.Net.ServicePointManager]::CertificatePolicy -match "System.Net.DefaultCertPolicy"){
-        add-type @"
+        if ([System.Net.ServicePointManager]::CertificatePolicy -match "System.Net.DefaultCertPolicy") {
+            add-type @"
                  using System.Net;
                  using System.Security.Cryptography.X509Certificates;
                  public class TrustAllCertsPolicy : ICertificatePolicy {
@@ -38,8 +37,8 @@ function Start-SwAuditMFA {
                             }
                      }
 "@
-        [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-}
+            [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+        }
 
     }
     process {
@@ -61,7 +60,7 @@ function Start-SwAuditMFA {
         $AuditDate = (get-date -format MM/dd/yyyy)
         $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
         $token = (Send-TFA -connection $connectioninfo)
-        try{
+        try {
             $Configuration = [PSCustomObject]@{
                 System             = (Get-Sonicwall -AuditTarget $AuditTarget -Token $token -Endpoint "System" )
                 Administration     = (Get-Sonicwall -AuditTarget $AuditTarget -Token $token -Endpoint "Administration")
@@ -80,7 +79,7 @@ function Start-SwAuditMFA {
             }
         }
         
-        catch{
+        catch {
 
         }
         (Get-Sonicwall -AuditTarget $AuditTarget -Endpoint "DelAuth" -Token $token).Status
