@@ -13,7 +13,8 @@ function Get-Targets {
    
     switch ($query) {
 
-        "TFA" { Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "select * From accounts where MFAEnabled='N' AND Active='Y' AND Gen7='N'" }
+        "BasicAuth" { Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "select * From accounts where MFAEnabled='N' AND Active='Y' AND Gen7='N'" }
+        "TFA"   {Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "select * From accounts where MFAEnabled='Y' AND Active='Y' AND Gen7='N'"}
         "GeoIP" {
             Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "Select 
         GeoIP_Audit.AccountName AS [GeoIP_Audit AccountName]
