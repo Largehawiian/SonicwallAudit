@@ -82,6 +82,17 @@ function Start-SwAuditMFA {
         
         catch {
                 Write-host -ForegroundColor Red "Failed Connecting to $($connectioninfo.orgname)"
+            $ErrorMessage = "Failed Connecting to $($connectioninfo.orgname)."
+            Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "INSERT INTO [ErrorTable] 
+            ([AccountName]
+            ,[Audit_Date]
+            ,[ErrorMessage])
+            VALUES
+            ('$($connectioninfo.orgname)'
+            ,'$($AuditDate)'
+            ,'$($ErrorMessage)')
+            GO "
+            return $ErrorMessage
         }
         (Get-Sonicwall -AuditTarget $AuditTarget -Endpoint "DelAuth" -Token $token).Status
         $env:SWToken = $null
