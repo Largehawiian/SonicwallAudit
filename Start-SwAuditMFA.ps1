@@ -61,6 +61,7 @@ function Start-SwAuditMFA {
         $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
         $token = (Send-TFA -connection $connectioninfo)
         try {
+            Write-host -ForegroundColor Green "Connecting to $($connectioninfo.orgname)"
             $Configuration = [PSCustomObject]@{
                 System             = (Get-Sonicwall -AuditTarget $AuditTarget -Token $token -Endpoint "System" )
                 Administration     = (Get-Sonicwall -AuditTarget $AuditTarget -Token $token -Endpoint "Administration")
@@ -80,7 +81,7 @@ function Start-SwAuditMFA {
         }
         
         catch {
-
+                Write-host -ForegroundColor Red "Failed Connecting to $($connectioninfo.orgname)"
         }
         (Get-Sonicwall -AuditTarget $AuditTarget -Endpoint "DelAuth" -Token $token).Status
         $env:SWToken = $null
