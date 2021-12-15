@@ -9,46 +9,46 @@ inputs:
     description: 'Specifies the path to the scripts or module to be analyzed. Wildcard characters are supported.'
     required: true
     default: '.\'
-  #customRulePath:
-  #  description: 'Uses only the custom rules defined in the specified paths to the analysis. To still use the built-in rules, add the -IncludeDefaultRules switch.'
-  #  required: false
-  #recurseCustomRulePath:
-  #  description: 'Adds rules defined in subdirectories of the CustomRulePath location.'
-  #  required: false
-  #excludeRule:
-  #  description: 'Omits the specified rules from the Script Analyzer test. Wildcard characters are supported.'
-  #  required: false
+  customRulePath:
+    description: 'Uses only the custom rules defined in the specified paths to the analysis. To still use the built-in rules, add the -IncludeDefaultRules switch.'
+    required: false
+  recurseCustomRulePath:
+    description: 'Adds rules defined in subdirectories of the CustomRulePath location.'
+    required: false
+  excludeRule:
+    description: 'Omits the specified rules from the Script Analyzer test. Wildcard characters are supported.'
+    required: false
   includeDefaultRules: true
     description: 'Invoke default rules along with Custom rules.'
     required: false
-  #includeRule:
-  #  description: 'Runs only the specified rules in the Script Analyzer test.'
-  #  required: false
-  #severity:
-  #  description: 'After running Script Analyzer with all rules, this parameter selects rule violations with the specified severity.'
-  #  required: false
-  #recurse:
-  #  description: 'Runs Script Analyzer on the files in the Path directory and all subdirectories recursively.'
-  #  required: false
-  #suppressedOnly:
-  #  description: 'Returns rules that are suppressed, instead of analyzing the files in the path.'
-  #  required: false
+  includeRule:
+    description: 'Runs only the specified rules in the Script Analyzer test.'
+    required: false
+  severity:
+    description: 'After running Script Analyzer with all rules, this parameter selects rule violations with the specified severity.'
+    required: false
+  recurse:
+    description: 'Runs Script Analyzer on the files in the Path directory and all subdirectories recursively.'
+    required: false
+  suppressedOnly:
+    description: 'Returns rules that are suppressed, instead of analyzing the files in the path.'
+    required: false
   fix: false
     description: 'Fixes certain warnings which contain a fix in their DiagnosticRecord.'
     required: false
   enableExit: true
     description: 'Exits PowerShell and returns an exit code equal to the number of error records.'
     required: false
-  #settings:
-  #  description: 'File path that contains user profile or hash table for ScriptAnalyzer.'
-  #  required: false
+  settings:
+    description: 'File path that contains user profile or hash table for ScriptAnalyzer.'
+    required: false
   output:
     description: 'Specifies where the path for the sarif file'
     required: true
     default: 'results.sarif'
- # ignorePattern:
- #   description: 'Exclude specific files from the sarif results. Uses regex pattern.'
- #   required: false
+  ignorePattern:
+    description: 'Exclude specific files from the sarif results. Uses regex pattern.'
+    required: false
 runs:
   using: "composite"
   steps:
