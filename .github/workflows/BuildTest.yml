@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  
+  
+jobs:
+  lint:
+    name: Run PSSA
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run PSScriptAnalyzer
+      uses: microsoft/psscriptanalyzer-action@v1.0
+      with:
+        path: .\
+        
