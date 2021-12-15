@@ -5,10 +5,10 @@ branding:
   icon: "check"
   color: "gray-dark"
 inputs:
- #path:
- #   description: 'Specifies the path to the scripts or module to be analyzed. Wildcard characters are supported.'
- #   required: true
- #  default: '.\'
+ path:
+    description: 'Specifies the path to the scripts or module to be analyzed. Wildcard characters are supported.'
+    required: true
+    default: '.\'
   customRulePath:
     description: 'Uses only the custom rules defined in the specified paths to the analysis. To still use the built-in rules, add the -IncludeDefaultRules switch.'
     required: false
@@ -18,7 +18,7 @@ inputs:
   excludeRule:
     description: 'Omits the specified rules from the Script Analyzer test. Wildcard characters are supported.'
     required: false
-  includeDefaultRules: true
+  includeDefaultRules:
     description: 'Invoke default rules along with Custom rules.'
     required: false
   includeRule:
