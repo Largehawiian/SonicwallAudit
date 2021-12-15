@@ -27,9 +27,9 @@ inputs:
   #severity:
   #  description: 'After running Script Analyzer with all rules, this parameter selects rule violations with the specified severity.'
   #  required: false
-  recurse: true
-    description: 'Runs Script Analyzer on the files in the Path directory and all subdirectories recursively.'
-    required: false
+  #recurse:
+  #  description: 'Runs Script Analyzer on the files in the Path directory and all subdirectories recursively.'
+  #  required: false
   #suppressedOnly:
   #  description: 'Returns rules that are suppressed, instead of analyzing the files in the path.'
   #  required: false
@@ -46,9 +46,9 @@ inputs:
     description: 'Specifies where the path for the sarif file'
     required: true
     default: 'results.sarif'
-#  ignorePattern:
-#    description: 'Exclude specific files from the sarif results. Uses regex pattern.'
-#    required: false
+ # ignorePattern:
+ #   description: 'Exclude specific files from the sarif results. Uses regex pattern.'
+ #   required: false
 runs:
   using: "composite"
   steps:
