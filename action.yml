@@ -36,7 +36,7 @@ inputs:
   fix: false
     description: 'Fixes certain warnings which contain a fix in their DiagnosticRecord.'
     required: false
-  enableExit: true
+  enableExit:
     description: 'Exits PowerShell and returns an exit code equal to the number of error records.'
     required: false
   settings:
