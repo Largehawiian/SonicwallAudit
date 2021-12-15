@@ -3,61 +3,42 @@ function Start-SwAudit {
         [array]$AuditTarget
     )
     begin {
-        $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
+        $Script:Cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
         
-        $connectioninfo = [PSCustomObject]@{
-            PubIp    = $cred.url.trimstart('https://').split(':')[0]
-            Username = $cred.username
-            Password = $cred.password
-            OrgName  = $cred.'organization-name'
-            OrgID    = $cred.'organization-id'
+        $Script:ConnectionInfo = [PSCustomObject]@{
+            PubIp    = $Script:Cred.url.trimstart('https://').split(':')[0]
+            Username = $Script:Cred.username
+            Password = $Script:Cred.password
+            OrgName  = $Script:Cred.'organization-name'
+            OrgID    = $Script:Cred.'organization-id'
             TFA      = $AuditTarget.TFA
         }
-        $instance = "SQL\Audit"
-        $DBName = "SonicWallAudit"
-
-        $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
-        $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
-
+       
     }
     process {
-        function Invoke-SQLQueries {
-            param (
-                [switch]$AuditTable,
-                [String]$Query
-            )
-            if ($AuditTable) {
-                $OutputObject = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT TOP 1 AuditID FROM Audit_Table ORDER BY AuditID DESC;'
-                
-            }
-            if ($Query) {
-                Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Query
-            }
-            return $OutputObject
-        }
-        $AuditID = Invoke-SQLQueries -AuditTable; $AuditID.Auditid++
-        $AuditDate = (get-date -format MM/dd/yyyy)
-        $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
+        $Script:AuditID = Invoke-Sqlcmd -ServerInstance $Global:instance -Database $Global:DBName -Credential $Global:credentials -Query 'SELECT TOP 1 AuditID FROM Audit_Table ORDER BY AuditID DESC;'; $Script:AuditID.Auditid++
+        $Script:AuditDate = (get-date -format MM/dd/yyyy)
+        $Script:GeoIPReference = Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query 'SELECT * FROM GeoIP_Reference;'
         try {
-            write-host -foregroundcolor Green "Connecting to $($Connectioninfo.OrgName)"
-            Connect-SWAppliance -Server $connectioninfo.PubIp -Port 2020 -Credential (New-Object System.Management.Automation.PSCredential -ArgumentList ($connectioninfo.username, (ConvertTo-SecureString $connectioninfo.password -AsPlainText -Force)))
+            write-host -foregroundcolor Green "Connecting to $($Script:ConnectionInfo.OrgName)"
+            Connect-SWAppliance -Server $Script:ConnectionInfo.PubIp -Port 2020 -Credential (New-Object System.Management.Automation.PSCredential -ArgumentList ($Script:ConnectionInfo.username, (ConvertTo-SecureString $Script:ConnectionInfo.password -AsPlainText -Force)))
         }
         catch {
             write-host -foregroundcolor Red "Connection Failed"
-            $ErrorMessage = "Failed to connect to SonicWALL Appliance"
-            Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "INSERT INTO [ErrorTable] 
+            $Script:ErrorMessage = "Failed to connect to SonicWALL Appliance"
+            Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query "INSERT INTO [ErrorTable] 
             ([AccountName]
             ,[Audit_Date]
             ,[ErrorMessage])
             VALUES
-            ('$($connectioninfo.orgname)'
-            ,'$($AuditDate)'
-            ,'$($ErrorMessage)')
+            ('$($Script:ConnectionInfo.orgname)'
+            ,'$($Script:AuditDate)'
+            ,'$($Script:ErrorMessage)')
             GO "
-            return "Connection Failed to $($Connectioninfo.OrgName)"
+            return "Connection Failed to $($Script:ConnectionInfo.OrgName)"
         }
         try{
-            $Configuration = [PSCustomObject]@{
+            $Script:Configuration = [PSCustomObject]@{
                 System             = (Get-SWSystem)
                 Administration     = (Get-SWAdministration)
                 SNMP               = (Get-SWsnmp)
@@ -80,45 +61,42 @@ function Start-SwAudit {
         }
     
         try {
-            foreach ($country in $GeoIPReference.countries) {
-                if ($Configuration.GeoIP.block.country | Where-Object { $_.name -match $Country } ) {               
+            foreach ($country in $Script:GeoIPReference.countries) {
+                if ($Script:Configuration.GeoIP.block.country | Where-Object { $_.name -match $Country } ) {               
                 }
                 else {
                     if ($country | where-object { $_ -match "'" }) { $country = $country.replace("'", "''") }
-                    [System.Collections.ArrayList]$Configuration.MissingCountries += $Country
+                    [System.Collections.ArrayList]$Script:Configuration.MissingCountries += $Country
                 }
             }
 
         }
         catch {
-            $ErrorMessage = "Errors getting GeoIP Data."
-            Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query "INSERT INTO [ErrorTable] 
+            $Script:ErrorMessage = "Errors getting GeoIP Data."
+            Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query "INSERT INTO [ErrorTable] 
             ([AccountName]
             ,[Audit_Date]
             ,[ErrorMessage])
             VALUES
-            ('$($connectioninfo.orgname)'
-            ,'$($AuditDate)'
-            ,'$($ErrorMessage)')
+            ('$($Script:ConnectionInfo.orgname)'
+            ,'$($Script:AuditDate)'
+            ,'$($Script:ErrorMessage)')
             GO "
 
         }
-       
-        
-
         # Queries
-        $AuditQuery = "INSERT INTO [Audit_Table]
+        $Script:AuditQuery = "INSERT INTO [Audit_Table]
         ([AccountName]
         ,[AuditID]
         ,[Audit_Date])
     VALUES 
-        ('$($connectioninfo.OrgName)'
-         ,'$($AuditID.AuditID)'
-         ,'$($AuditDate)')
+        ('$($Script:ConnectionInfo.OrgName)'
+         ,'$($Script:AuditID.AuditID)'
+         ,'$($Script:AuditDate)')
 GO
 "
 
-        $Systemquery = "
+        $Script:SystemQuery = "
 INSERT INTO [dbo].[System]
             ([AccountName]
             ,[model]
@@ -132,19 +110,19 @@ INSERT INTO [dbo].[System]
             ,[AuditID])
         VALUES
             ('$($AuditTarget.AccountName)'
-            ,'$($Configuration.System.model)'
-            ,'$($configuration.System.serial_number)'
-            ,'$($Configuration.System.firmware_version)'
-            ,'$($Configuration.System.up_time)'
-            ,'$($Configuration.snmp.get_community_name)'
-            ,'$(($Configuration.SecurityServices.split(" ")[0]))'
-            ,'$($Configuration.user.LDAP.user.ldap.server.use_tls)'
-            ,'$($AuditDate)'
-            ,'$($AuditID.AuditID)'
+            ,'$($Script:Configuration.System.model)'
+            ,'$($Script:Configuration.System.serial_number)'
+            ,'$($Script:Configuration.System.firmware_version)'
+            ,'$($Script:Configuration.System.up_time)'
+            ,'$($Script:Configuration.snmp.get_community_name)'
+            ,'$(($Script:Configuration.SecurityServices.split(" ")[0]))'
+            ,'$($Script:Configuration.user.LDAP.user.ldap.server.use_tls)'
+            ,'$($Script:AuditDate)'
+            ,'$($Script:AuditID.AuditID)'
             )
 GO
 "
-        $AntiSpywareQuery = "
+        $Script:AntiSpywareQuery = "
 INSERT INTO [dbo].[AntiSpyware]
             ([AccountName]
             ,[Enabled]
@@ -157,21 +135,21 @@ INSERT INTO [dbo].[AntiSpyware]
             ,[Audit_Date]
             ,[AuditID])
     VALUES
-            ('$($connectioninfo.OrgName)'
-             ,'$($Configuration.AntiSpyware.enable)'
-             ,'$($configuration.AntiSpyware.signature_group.high_danger.prevent_all)'
-             ,'$($configuration.AntiSpyware.signature_group.high_danger.detect_all)'
-             ,'$($configuration.AntiSpyware.signature_group.medium_danger.prevent_all)'
-             ,'$($configuration.AntiSpyware.signature_group.medium_danger.detect_all)'
-             ,'$($configuration.AntiSpyware.signature_group.low_danger.prevent_all)'
-             ,'$($configuration.AntiSpyware.signature_group.low_danger.detect_all)'
-             ,'$($AuditDate)'
-             ,'$($AuditID.AuditID)'
+            ('$($Script:ConnectionInfo.OrgName)'
+             ,'$($Script:Configuration.AntiSpyware.enable)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.high_danger.prevent_all)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.high_danger.detect_all)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.medium_danger.prevent_all)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.medium_danger.detect_all)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.low_danger.prevent_all)'
+             ,'$($Script:Configuration.AntiSpyware.signature_group.low_danger.detect_all)'
+             ,'$($Script:AuditDate)'
+             ,'$($Script:AuditID.AuditID)'
            )
 GO
 "  
 
-        $AntiVirusQuery = "
+        $Script:AntiVirusQuery = "
 INSERT INTO [dbo].[AntiVirus]
             ([AccountName]
             ,[Enabled]
@@ -185,20 +163,20 @@ INSERT INTO [dbo].[AntiVirus]
             ,[Audit_Date]
             ,[AuditID])
     VALUES
-             ('$($connectioninfo.OrgName)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.enable)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.http)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.ftp)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.imap)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.smtp)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.pop3)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.cifs_netbios)'
-             ,'$($Configuration.AntiVirus.gateway_antivirus.inbound_inspection.tcp_stream)'
-             ,'$($AuditDate)'
-             ,'$($AuditID.AuditID)')
+             ('$($Script:ConnectionInfo.OrgName)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.enable)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.http)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.ftp)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.imap)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.smtp)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.pop3)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.cifs_netbios)'
+             ,'$($Script:Configuration.AntiVirus.gateway_antivirus.inbound_inspection.tcp_stream)'
+             ,'$($Script:AuditDate)'
+             ,'$($Script:AuditID.AuditID)')
 GO
 "  
-        $IPSQuery = "
+        $Script:IPSQuery = "
 INSERT INTO [dbo].[IPS]
             ([AccountName]
             ,[Enabled]
@@ -211,49 +189,49 @@ INSERT INTO [dbo].[IPS]
             ,[Audit_Date]
             ,[AuditID])
     VALUES
-            ('$($connectioninfo.OrgName)'
-             ,'$($Configuration.IPS.enable)'
-             ,'$($Configuration.IPS.signature_group.high_priority.prevent_all)'
-             ,'$($Configuration.IPS.signature_group.high_priority.detect_all)'
-             ,'$($Configuration.IPS.signature_group.medium_priority.prevent_all)'
-             ,'$($Configuration.IPS.signature_group.medium_priority.detect_all)'
-             ,'$($Configuration.IPS.signature_group.low_priority.prevent_all)'
-             ,'$($Configuration.IPS.signature_group.low_priority.detect_all)'
-             ,'$($AuditDate)'
-             ,'$($AuditID.AuditID)')
+            ('$($Script:ConnectionInfo.OrgName)'
+             ,'$($Script:Configuration.IPS.enable)'
+             ,'$($Script:Configuration.IPS.signature_group.high_priority.prevent_all)'
+             ,'$($Script:Configuration.IPS.signature_group.high_priority.detect_all)'
+             ,'$($Script:Configuration.IPS.signature_group.medium_priority.prevent_all)'
+             ,'$($Script:Configuration.IPS.signature_group.medium_priority.detect_all)'
+             ,'$($Script:Configuration.IPS.signature_group.low_priority.prevent_all)'
+             ,'$($Script:Configuration.IPS.signature_group.low_priority.detect_all)'
+             ,'$($Script:AuditDate)'
+             ,'$($Script:AuditID.AuditID)')
 GO      
 "
-        $GeoIPQuery = "
+        $Script:GeoIPQuery = "
 INSERT INTO [dbo].[GeoIP_Audit]
             ([AccountName]
             ,[AuditID]
             ,[Audit_Date]
             ,[MissingCountries])
     VALUES
-            ('$($connectioninfo.OrgName)'
-            ,'$($AuditID.AuditID)'
-            ,'$($AuditDate)'
-            ,'$($Configuration.MissingCountries)')
+            ('$($Script:ConnectionInfo.OrgName)'
+            ,'$($Script:AuditID.AuditID)'
+            ,'$($Script:AuditDate)'
+            ,'$($Script:Configuration.MissingCountries)')
 GO
 "
 
-        $Queries = @{
-            Audit       = $AuditQuery
-            System      = $SystemQuery
-            AntiSpyware = $AntiSpywareQuery
-            AntiVirus   = $AntiVirusQuery
-            IPS         = $IPSQuery
-            GeoIP       = $GeoIPQuery
+        $Script:Queries = @{
+            Audit       = $Script:AuditQuery
+            System      = $Script:SystemQuery
+            AntiSpyware = $Script:AntiSpywareQuery
+            AntiVirus   = $Script:AntiVirusQuery
+            IPS         = $Script:IPSQuery
+            GeoIP       = $Script:GeoIPQuery
         }
 
 
 
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.Audit
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.System
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.AntiSpyware
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.AntiVirus
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.IPS
-        Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query $Queries.GeoIP
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.Audit
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.System
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.AntiSpyware
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.AntiVirus
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.IPS
+        Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Global:Credentials -Query $Script:Queries.GeoIP
 
 
   

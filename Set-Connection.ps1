@@ -3,23 +3,23 @@ function Set-Connection {
         [string]$AccountName
     )
     begin {
-        $AuditTarget = Get-Targets -AccountName $AccountName
-        $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
+        $Script:AuditTarget = Get-Targets -AccountName $AccountName
+        $Script:Cred = (Get-ITGluePasswords -organization_id $Script:AuditTarget.ITGlueID -id $Script:AuditTarget.Asset).data.attributes
         
-        $connectioninfo = [PSCustomObject]@{
-            PubIp    = $cred.url.trimstart('https://').split(':')[0]
-            Username = $cred.username
-            Password = $cred.password
-            OrgName  = $cred.'organization-name'
-            OrgID    = $cred.'organization-id'
-            TFA      = $AuditTarget.TFA
-            ITGlueID = $AuditTarget.ITGlueID
-            Asset   = $AuditTarget.Asset
+        $Script:Connnectioninfo = [PSCustomObject]@{
+            PubIp    = $Script:Cred.url.trimstart('https://').split(':')[0]
+            Username = $Script:Cred.username
+            Password = $Script:Cred.password
+            OrgName  = $Script:Cred.'organization-name'
+            OrgID    = $Script:Cred.'organization-id'
+            TFA      = $Script:AuditTarget.TFA
+            ITGlueID = $Script:AuditTarget.ITGlueID
+            Asset   =  $Script:AuditTarget.Asset
 
         }
 
     }
     process {
-        return $connectioninfo
+        return $Script:Connnectioninfo
     }
 }

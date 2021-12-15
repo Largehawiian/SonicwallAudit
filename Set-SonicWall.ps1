@@ -1,78 +1,70 @@
 function Set-SonicWall {
     param (
         [string]$Endpoint,
-        [string]$token,
+        [string]$Script:Token,
         [array]$AuditTarget,
-        [switch]$Debug,
         [switch]$BasicAuth
     )
-
-    $instance = "SQL\Audit"
-    $DBName = "SonicWallAudit"
-
-    $credentials = (Get-ITGluePasswords -organization_id "2426633" -id "15564490").data.attributes
-    $creds = New-Object System.Management.Automation.PsCredential($credentials.username, (ConvertTo-SecureString $credentials.password -AsPlainText -force ))
     
-    $cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
-    if ($debug) { $cred; Start-Sleep -Seconds 5 }
-    $connection = [PSCustomObject]@{
-        PubIp    = $cred.url.trimstart('https://').split(':')[0]
-        Username = $cred.username
-        Password = $cred.password
-        OrgName  = $cred.'organization-name'
-        OrgID    = $cred.'organization-id'
+    $Script:Cred = (Get-ITGluePasswords -organization_id $AuditTarget.ITGlueID -id $AuditTarget.Asset).data.attributes
+    if ($debug) { $Script:Cred; Start-Sleep -Seconds 5 }
+    $Script:Connection = [PSCustomObject]@{
+        PubIp    = $Script:Cred.url.trimstart('https://').split(':')[0]
+        Username = $Script:Cred.username
+        Password = $Script:Cred.password
+        OrgName  = $Script:Cred.'organization-name'
+        OrgID    = $Script:Cred.'organization-id'
         TFA      = $AuditTarget.TFA
     }
-    if ($debug) { $connection; start-sleep -Seconds 5 }
+
     if (!$BasicAuth) {
-        if (!$Token -and !$ENV:SWToken) {
-            $token = (Send-TFA -connection $connection)
+        if (!$Script:Token -and !$ENV:SWToken) {
+            $Script:Token = (Send-TFA -connection $Script:Connection)
         }
-        if ($ENV:SWToken) { $token = $ENV:SWToken }
-        $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-        $headers.Add("Authorization", $token)
-        if ($Debug) { $headers ; Start-Sleep -Seconds 5 }
+        if ($ENV:SWToken) { $Script:Token = $ENV:SWToken }
+        $Script:Headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+        $Script:Headers.Add("Authorization", $Script:Token)
    
         switch ($Endpoint) {
-            "DNS" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/dns" -Method 'GET' -Headers $headers }
-            "Config" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/current" -Method 'GET' -Headers $headers }
-            "AccessRules" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/access-rules/ipv4" -Method 'GET' -Headers $headers } 
-            "System" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/system"-Method 'GET' -Headers $headers } 
-            "GAV" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/gateway-antivirus/settings" -Method 'GET' -Headers $headers }
-            "GeoIP" {
-                $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
-                $Body = @{
+            "DNS"         { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/dns" -Method 'GET' -Headers $Script:Headers }
+            "Config"      { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/current" -Method 'GET' -Headers $Script:Headers }
+            "AccessRules" { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/access-rules/ipv4" -Method 'GET' -Headers $Script:Headers } 
+            "System"      { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/reporting/system"-Method 'GET' -Headers $Script:Headers } 
+            "GAV"         { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/gateway-antivirus/settings" -Method 'GET' -Headers $Script:Headers }
+            "GeoIP"       {
+                $Script:GeoIPReference = Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Script:Creds -Query 'SELECT * FROM GeoIP_Reference;'
+                $Script:Body = @{
                     geo_ip = @{
                         block = @{
                             country = @(
-                                $GeoIPReference.countries | ForEach-Object { @{ name = $_ } }
+                                $Script:GeoIPReference.countries | ForEach-Object { @{ name = $_ } }
                             )
                         }
                     }
                 } | ConvertTo-Json -Depth 4
-                $response = Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/geo-ip" -Method 'PUT' -Headers $headers -Body $Body 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $headers
-                if ($Debug) { $GeoIPReference; $body ; $response ; Start-Sleep -Seconds 5 }
+                $Script:Response = Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/geo-ip" -Method 'PUT' -Headers $Script:Headers -Body $Script:Body 
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $Script:Headers
+                
             }
-            "IPS" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'GET' -Headers $headers).intrusion_prevention }
-            "SecExpiration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/intrusion-prevention" -Method 'GET' -Headers $headers).ips_service_expiration_date }
-            "BotNet" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/botnet/global" -Method 'GET' -Headers $headers).botnet }
-            "SNMP" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/snmp/settings" -Method 'GET' -Headers $headers).snmp }
-            "Administration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/administration/global" -Method 'GET' -Headers $headers).Administration }
-            "AntiSpyware" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'GET' -Headers $headers).anti_spyware }
-            "DelAuth" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $headers }
-            "Commit" { $response = Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $headers }
+            "IPS"           { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'GET' -Headers $Script:Headers).intrusion_prevention }
+            "SecExpiration" { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/reporting/intrusion-prevention" -Method 'GET' -Headers $Script:Headers).ips_service_expiration_date }
+            "BotNet"        { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/botnet/global" -Method 'GET' -Headers $Script:Headers).botnet }
+            "SNMP"          { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/snmp/settings" -Method 'GET' -Headers $Script:Headers).snmp }
+            "Administration"{ (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/administration/global" -Method 'GET' -Headers $Script:Headers).Administration }
+            "AntiSpyware"   { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'GET' -Headers $Script:Headers).anti_spyware }
+            "DelAuth"       { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $Script:Headers }
+            "Commit"        { $Script:Response = Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $Script:Headers }
         }
     }
     if ($BasicAuth) {
-        Connect-SWAppliance -Server $connection.PubIp -Port 2020 -Credential (New-Object System.Management.Automation.PSCredential -ArgumentList ($connection.username, (ConvertTo-SecureString $connection.password -AsPlainText -Force)))
+        Connect-SWAppliance -Server $Script:Connection.PubIp -Port 2020 -Credential (New-Object System.Management.Automation.PSCredential -ArgumentList ($Script:Connection.username, (ConvertTo-SecureString $Script:Connection.password -AsPlainText -Force)))
         switch ($Endpoint) {
-            "DNS" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/dns" -Method 'GET' -Headers $headers }
-            "Config" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/current" -Method 'GET' -Headers $headers }
-            "AccessRules" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/access-rules/ipv4" -Method 'GET' -Headers $headers } 
-            "System" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/system"-Method 'GET' -Headers $headers } 
-            "GAV" { 
-                $Body = @{
+            "DNS"         { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/dns" -Method 'GET' -Headers $Script:Headers }
+            "Config"      { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/current" -Method 'GET' -Headers $Script:Headers }
+            "AccessRules" { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/access-rules/ipv4" -Method 'GET' -Headers $Script:Headers } 
+            "System"      { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/reporting/system"-Method 'GET' -Headers $Script:Headers } 
+            "GAV"         { 
+                $Script:Body = @{
                     gateway_antivirus = @{
                         enable              = $true
                         inbound_inspection  = @{
@@ -94,26 +86,26 @@ function Set-SonicWall {
                 } | ConvertTo-Json -Depth 3
                 
                 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/gateway-antivirus/settings" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/gateway-antivirus/settings" -Method 'PUT' -Body $Script:Body
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
             }
-            "GeoIP" {
-                $GeoIPReference = Invoke-Sqlcmd -ServerInstance $instance -Database $DBName -Credential $creds -Query 'SELECT * FROM GeoIP_Reference;'
-                $Body = @{
+            "GeoIP"     {
+                $Script:GeoIPReference = Invoke-Sqlcmd -ServerInstance $Global:Instance -Database $Global:DBName -Credential $Script:Creds -Query 'SELECT * FROM GeoIP_Reference;'
+                $Script:Body = @{
                     geo_ip = @{
                         block = @{
                             country = @(
-                                $GeoIPReference.countries | ForEach-Object { @{ name = $_ } }
+                                $Script:GeoIPReference.countries | ForEach-Object { @{ name = $_ } }
                             )
                         }
                     }
                 } | ConvertTo-Json -Depth 4
-                $response = Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/geo-ip" -Method 'PUT' -Body $Body 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
-                if ($Debug) { $GeoIPReference; $body ; $response ; Start-Sleep -Seconds 5 }
+                $Script:Response = Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/geo-ip" -Method 'PUT' -Body $Script:Body 
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
+                if ($Debug) { $Script:GeoIPReference; $Script:Body ; $Script:Response ; Start-Sleep -Seconds 5 }
             }
             "IPS" {
-                $Body = @{
+                $Script:Body = @{
                     intrusion_prevention = @{
                         enable          = $True
                         signature_group = @{
@@ -133,12 +125,12 @@ function Set-SonicWall {
                         }
                     }
                 } | Convertto-json -Depth 10
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'PUT'-Body $Body 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/intrusion-prevention/global" -Method 'PUT'-Body $Script:Body 
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
             }
-            "SecExpiration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/reporting/intrusion-prevention" -Method 'GET' -Headers $headers).ips_service_expiration_date }
-            "BotNet" { 
-                $body = @{
+            "SecExpiration" { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/reporting/intrusion-prevention" -Method 'GET' -Headers $Script:Headers).ips_service_expiration_date }
+            "BotNet"        { 
+                $Script:Body = @{
                     botnet = @{
                         block       = @{
                             connections             = @{
@@ -156,13 +148,13 @@ function Set-SonicWall {
                         }
                     }  
                 } | convertto-json -Depth 3 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/botnet/global" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/botnet/global" -Method 'PUT' -Body $Script:Body
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST'
             }
-            "SNMP" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/snmp/settings" -Method 'GET' -Headers $headers).snmp }
-            "Administration" { (Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/administration/global" -Method 'GET' -Headers $headers).Administration }
-            "AntiSpyware" {
-                $body = @{
+            "SNMP"           { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/snmp/settings" -Method 'GET' -Headers $Script:Headers).snmp }
+            "Administration" { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/administration/global" -Method 'GET' -Headers $Script:Headers).Administration }
+            "AntiSpyware"    {
+                $Script:Body = @{
                     anti_spyware = @{
                         enable          = $true
                         signature_group = @{
@@ -195,15 +187,15 @@ function Set-SonicWall {
                     }
                 } | ConvertTo-Json -Depth 3
                 
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'PUT' -Body $Body
-                Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'PUT' -Body $Script:Body
+                Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' 
             }
-            "DelAuth" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $headers }
-            "Commit" { $response = Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $headers }
+            "DelAuth"       { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $Script:Headers }
+            "Commit"        { $Script:Response = Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'POST' -Headers $Script:Headers }
         }
 
     }
-    return $response
-    Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $headers | out-null
+    return $Script:Response
+    Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $Script:Headers | out-null
     $env:SWToken = $null
 }
