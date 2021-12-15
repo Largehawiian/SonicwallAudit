@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Run PSScriptAnalyzer
-        uses: .\ # Uses an action in the root directory
+        uses: ./ # Uses an action in the root directory
         with:
           path: '.\'
           recurse: true
