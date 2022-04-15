@@ -43,13 +43,13 @@ function Get-SonicWall {
             "AntiSpyware"    { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/anti-spyware/global" -Method 'GET' -Headers $Script:Headers).anti_spyware }
             "DelAuth"        { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $Script:Headers }
             "Pending"        { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/config/pending" -Method 'GET' -Headers $Script:Headers}
-            "AddressObjects" { Invoke-RestMethod "https://$($connection.PubIP):2020/api/sonicos/address-objects/ipv4" -Method 'GET' -Headers $headers}
+            "AddressObjects" { Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/address-objects/ipv4" -Method 'GET' -Headers $headers}
+            "Users-LoggedIn" { (Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/user/status/logged-in" -Method 'GET' -Headers $headers).replace("SSL VPN client",'"SSL VPN client"')| ConvertFrom-Json}
         }
 
         if (!$Token){
         Invoke-RestMethod "https://$($Script:Connection.PubIP):2020/api/sonicos/auth" -Method 'DEL' -Headers $Script:Headers | Out-Null
         $env:SWToken = $null
-        }
-   
+        }  
     }
 }
